@@ -244,7 +244,7 @@ to
 
 Question:
 
-- If i set the `minSize` of the zone-redundant nodeGroup to `3`, if each node gets created in different zones, these pods could get scheduled successfully, but could aws confirm that each node will be created in each zone? Moreover if i have two applications, could i set the `minSize` to `6` directly and they are distributed equally to each zone:
+- If i set the `minSize` of the zone-redundant nodeGroup to `3`, if each node gets created in different zones, these pods could get scheduled successfully, but could aws confirm that each node will be created in each zone? Moreover if i have two applications, could i set the `minSize` to `6` directly and they are distributed equally to each zone like the following topology:
     - us-west-2a: 2 nodes on the nodeGroup aws-tests-biganimal
     - us-west-2b: 2 nodes on the nodeGroup aws-tests-biganimal
     - us-west-2c: 2 nodes on the nodeGroup aws-tests-biganimal
