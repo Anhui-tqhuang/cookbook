@@ -147,7 +147,7 @@ nginx-deployment-64fb4654b7-zwlmb   0/1     Pending   0          6m47s
   Normal   NotTriggerScaleUp  20s   cluster-autoscaler  pod didn't trigger scale-up: 1 node(s) didn't match pod anti-affinity rules, 1 max node group size reached
 ```
 
-This question could be resolved by changing the managedNodeGroup configuration in the clusterconfig from
+This problem could be resolved by changing the managedNodeGroup configuration in the clusterconfig from
 ```yaml
 - name: "aws-tests-biganimal"
   instanceType: c5.large
