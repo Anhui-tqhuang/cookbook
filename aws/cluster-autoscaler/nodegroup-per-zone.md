@@ -3,6 +3,7 @@
 Firstly, prepare one EKS cluster config:
 
 ```yaml
+# clusterconfig.yaml
 apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
 
@@ -147,36 +148,30 @@ nginx-deployment-64fb4654b7-zwlmb   0/1     Pending   0          6m47s
   Normal   NotTriggerScaleUp  20s   cluster-autoscaler  pod didn't trigger scale-up: 1 node(s) didn't match pod anti-affinity rules, 1 max node group size reached
 ```
 
-This problem could be resolved by changing the managedNodeGroup configuration in the clusterconfig from
-```yaml
-- name: "aws-tests-biganimal"
-  instanceType: c5.large
-  desiredCapacity: 0
-  availabilityZones:
-  - us-west-2a
-  - us-west-2b
-  - us-west-2c
-  minSize: 0
-  maxSize: 10
-  labels:
-    tests: biganimal
-  taints:
-  - key: biganimal
-    value: "true"
-    effect: NoSchedule
-  iam:
-    withAddonPolicies:
-      awsLoadBalancerController: true
-      autoScaler: true
-  tags:
-    k8s.io/cluster-autoscaler/node-template/label/tests: biganimal
-    k8s.io/cluster-autoscaler/node-template/taint/biganimal: "true:NoSchedule"
-  propagateASGTags: true
+Scale down the replica of the deployment to `0`:
+
+```
+kubectl scale --replicas=0 deployment nginx-deployment
 ```
 
-to
+Delete the nodeGroup `aws-tests-biganimal`:
+
+```
+eksctl delete nodegroup --cluster aws-tests --name aws-tests-biganimal
+```
+
+Create three nodeGroups around three zones through the following config:
 
 ```yaml
+# nodegroups.yaml
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: aws-tests
+  region: us-west-2
+
+managedNodeGroups:
 - name: "aws-tests-biganimal-1"
   instanceType: c5.large
   desiredCapacity: 0
@@ -242,9 +237,44 @@ to
   propagateASGTags: true
 ```
 
+```
+eksctl create nodegroup --config-file=nodegroups.yaml
+```
+
+Scale up the replica of the deployment to `3`:
+
+```
+kubectl scale --replicas=3 deployment nginx-deployment
+```
+
+And all pods get scheduled successfully:
+
+```
+kubectl get pods -o wide
+NAME                                READY   STATUS    RESTARTS   AGE     IP               NODE                                           NOMINATED NODE   READINESS GATES
+nginx-deployment-64fb4654b7-2xzsp   1/1     Running   0          3m58s   192.168.20.178   ip-192-168-10-33.us-west-2.compute.internal    <none>           <none>
+nginx-deployment-64fb4654b7-5drvp   1/1     Running   0          3m58s   192.168.72.242   ip-192-168-84-21.us-west-2.compute.internal    <none>           <none>
+nginx-deployment-64fb4654b7-dzknc   1/1     Running   0          3m58s   192.168.59.216   ip-192-168-40-240.us-west-2.compute.internal   <none>           <none>
+```
+
+```
+kubectl get nodes -l eks.amazonaws.com/nodegroup=aws-tests-biganimal-1
+NAME                                          STATUS   ROLES    AGE     VERSION
+ip-192-168-10-33.us-west-2.compute.internal   Ready    <none>   2m16s   v1.23.17-eks-a59e1f0
+
+kubectl get nodes -l eks.amazonaws.com/nodegroup=aws-tests-biganimal-2
+NAME                                           STATUS   ROLES    AGE     VERSION
+ip-192-168-40-240.us-west-2.compute.internal   Ready    <none>   2m19s   v1.23.17-eks-a59e1f0
+
+kubectl get nodes -l eks.amazonaws.com/nodegroup=aws-tests-biganimal-3
+NAME                                          STATUS   ROLES    AGE     VERSION
+ip-192-168-84-21.us-west-2.compute.internal   Ready    <none>   2m23s   v1.23.17-eks-a59e1f0
+```
+
 Question:
 
 - If i set the `minSize` of the zone-redundant nodeGroup to `3`, if each node gets created in different zones, these pods could get scheduled successfully, but could aws confirm that each node will be created in each zone? Moreover if i have two applications, could i set the `minSize` to `6` directly and they are distributed equally to each zone like the following topology:
+
     - us-west-2a: 2 nodes on the nodeGroup aws-tests-biganimal
     - us-west-2b: 2 nodes on the nodeGroup aws-tests-biganimal
     - us-west-2c: 2 nodes on the nodeGroup aws-tests-biganimal
